@@ -1067,6 +1067,67 @@ int send_over_network()
   kliter_t(lms) *it;
   messages_sent = 0;
 
+    /*
+    * 为 modbus tcp 进行实验
+    * 因为一些modbus tcp的实现依赖于每次读取都要获得完整的APU
+    * 每次读取（即pymodbus）。分割请求可能会有问题。
+    * 尽量将所有可用的信息合并成一个。
+    */
+//  if (extract_requests == &extract_requests_modbustcp) {
+//      u8 * msgbuf = NULL;
+//      u32 msglen = 0;
+//      for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+//          msgbuf = ck_realloc_block(msgbuf, msglen + kl_val(it)->msize);
+//          memcpy(&msgbuf[msglen], kl_val(it)->mdata, kl_val(it)->msize);
+//          msglen += kl_val(it)->msize;
+//          messages_sent++; // increase anyway
+//          // not sure how respond bytes tracker affect the algo
+//          // Allocate memory to store new accumulated response buffer size
+//          response_bytes = (u32 *) ck_realloc_block(response_bytes, messages_sent * sizeof(u32));
+//          response_bytes[messages_sent - 1] = response_buf_size; // unchanged until last one;
+//      }
+//
+//      n = net_send(sockfd, timeout, msgbuf, msglen);
+//      // allowing timeouts
+//      if ( n < 0 ) {
+//          goto HANDLE_RESPONSES;
+//      }
+//      n = net_recv(sockfd, timeout, poll_wait_msecs, &response_buf, &response_buf_size);
+//      response_bytes[messages_sent - 1] = response_buf_size; // set here
+//      // allowing timeouts
+//      if ( n < 0 ) {
+//          goto HANDLE_RESPONSES;
+//      }
+//  }else{
+//      for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+//          n = net_send(sockfd, timeout, kl_val(it)->mdata, kl_val(it)->msize);
+//          messages_sent++;
+//
+//          //Allocate memory to store new accumulated response buffer size
+//          response_bytes = (u32 *) ck_realloc(response_bytes, messages_sent * sizeof(u32));
+//
+//          //Jump out if something wrong leading to incomplete message sent
+//          if (n != kl_val(it)->msize) {
+//              goto HANDLE_RESPONSES;
+//          }
+//
+//          //retrieve server response
+//          u32 prev_buf_size = response_buf_size;
+//          n = net_recv(sockfd, timeout, poll_wait_msecs, &response_buf, &response_buf_size);
+//          // allowing timeouts
+//          if ( n < 0 ) {
+//              goto HANDLE_RESPONSES;
+//          }
+//          //Update accumulated response buffer size
+//          response_bytes[messages_sent - 1] = response_buf_size;
+//
+//          // set likely_buggy flag if AFLNet does not receive any feedback from the server
+//          // it could be a signal of a potentiall server crash, like the case of CVE-2019-7314
+//          if (prev_buf_size == response_buf_size) likely_buggy = 1;
+//          else likely_buggy = 0;
+//      }
+//  }
+
   for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
     n = net_send(sockfd, timeout, kl_val(it)->mdata, kl_val(it)->msize);
     messages_sent++;
@@ -9070,6 +9131,12 @@ int main(int argc, char** argv) {
         } else if (!strcmp(optarg, "IPP")) {
           extract_requests = &extract_requests_ipp;
           extract_response_codes = &extract_response_codes_ipp;
+        } else if(!strcmp(optarg, "MQTT")){
+            extract_requests = &extract_requests_mqtt;
+            extract_response_codes = &extract_response_codes_mqtt;
+        } else if (!strcmp(optarg, "MODBUSTCP")) {
+            extract_requests = &extract_requests_modbustcp;
+            extract_response_codes = &extract_response_codes_modbustcp;
         } else {
           FATAL("%s protocol is not supported yet!", optarg);
         }
